@@ -83,7 +83,7 @@ def parse_args(options):
         options['vmware']['node'] = args.host
 
     if args.vms:
-        print args.vms
+        options['vmware']['vms'] = args.vms
 
     if not options['vmware']['password']:
         import getpass
@@ -204,7 +204,10 @@ def ansible_vms(options, vms):
             else:
                 vmname = vms[server][vm]['vmware_name']
 
-            print vmname
+            if options['vmware']['vms'] == 'all':
+                print vmname
+            elif vmname.startswith(options['vmware']['vms']):
+                print vmname
 
 
 ###############################################################################
