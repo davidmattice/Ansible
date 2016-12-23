@@ -16,6 +16,7 @@
 # environment variable (VMWARE_INI_PATH) to the location of the file.
 #
 # Changes:
+#   20161223 - Added 'key_file' optin for flexible file specification
 #   20161223 - Added "--vms" parameter & code
 #
 # ToDo:
@@ -103,6 +104,9 @@ def parse_args(options):
 #      cipher = AES.new('VAULT_KEY'.rjust(32), AES.MODE_ECB)
 #      base64.urlsafe_b64encode(cipher.encrypt('VMWARE-PASSWORD'.rjust(16)))
 #
+# Also include the filename containing the decryption key ('key_file'), which
+# must have permissions of either 400 or 600.
+#
 ###############################################################################
 def get_options():
 
@@ -115,6 +119,7 @@ def get_options():
         'port': 443,
         'username': '',
         'password': '',
+        'key_file': '',
         'cache': False,
         'cache_exp': 24,
         'groups': '',
@@ -141,17 +146,24 @@ def get_options():
     # If the password is in the config file it is expected to have been encrypted
     #
     if defaults['vmware']['password'] != '':
-        try:
-            home_dir = os.path.expanduser('~')
-            perms = oct(os.stat(home_dir + '/.ansible-vault.key')[ST_MODE])
-            if perms[-3:] != '400' and perms[-3:] != '600':
-                print "(Error): Key file permissions must be 400 or 600"
-                sys.exit(1)
+        if defaults['vmware']['key_file'] != '':
+            try:
+                if defaults['vmware']['key_file'].startswith('/'):
+                    home_dir = ''
+                else:
+                    home_dir = os.path.expanduser('~') + '/'
+                perms = oct(os.stat(home_dir + defaults['vmware']['key_file'])[ST_MODE])
+                if perms[-3:] != '400' and perms[-3:] != '600':
+                    print "(Error): Key file permissions must be 400 or 600"
+                    sys.exit(1)
 
-            with open( home_dir + '/.ansible-vault.key', 'r') as key_file:
-                key = key_file.read().replace('\n','')
-        except (OSError, IOError) as e:
-            print("(Error): Password Unlock Key file [%s] not found" % (home_dir + '/.ansible-vault.key'))
+                with open( home_dir + defaults['vmware']['key_file'], 'r') as key_file:
+                    key = key_file.read().replace('\n','')
+            except (OSError, IOError) as e:
+                print("(Error): Password Unlock Key file [%s] not found" % (home_dir + defaults['vmware']['key_file']))
+                sys.exit(1)
+        else:
+            print("(Error): Password included in INI file with no Key File specified")
             sys.exit(1)
 
         cipher = AES.new(key.rjust(32), AES.MODE_ECB)
