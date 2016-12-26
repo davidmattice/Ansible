@@ -16,7 +16,6 @@
 # environment variable (VMWARE_INI_PATH) to the location of the file.
 #
 # Changes:
-#   20161223 - Added 'key_file' optin for flexible file specification
 #   20161223 - Added "--vms" parameter & code
 #
 # ToDo:
@@ -122,7 +121,7 @@ def get_options():
         'key_file': '',
         'cache': False,
         'cache_exp': 24,
-        'groups': '',
+        'groups': {},
         'properties': [ 'name', 'guest.hostName', 'guest.guestId', 'guest.guestState', 'config.hardware.numCPU', 'config.hardware.memoryMB' ],
         'ini_path': os.path.join(os.path.dirname(__file__), '%s.ini' % base_dir)
         }
@@ -135,15 +134,41 @@ def get_options():
 
     if config.has_section('vmware'):
         for k,v in config.items('vmware'):
+
+            #
+            # Add any properties from the INI file to the list to display
+            #
             if k == "properties":
                 for i in v.split(','):
                     if not i in defaults['vmware']['properties']:
                         defaults['vmware']['properties'].append(i)
+
+            #
+            # Build the grouping details from the INI file
+            #
+            elif k == "groups":
+                for m in v.split(','):
+                    n = m.split('|')
+                    grp_name = n[0]
+                    if not grp_name in defaults['vmware']['groups']:
+                        defaults['vmware']['groups'][grp_name] = {}
+                    if len(n) == 2:
+                        grp_vals = n[1]
+                        for r in grp_vals.split(';'):
+                            s = r.split('=')
+                            if len(s) == 2:
+                                old = s[0]
+                                new = s[1]
+                                defaults['vmware']['groups'][grp_name][old] = new
+                
             else:
                  defaults['vmware'][k] = v
 
+
     #
-    # If the password is in the config file it is expected to have been encrypted
+    # If the password is in the config and a key_file is specified the
+    # password is expected to be encrypted and the key in the key_file
+    # will be used to decrypt it.
     #
     if defaults['vmware']['password'] != '':
         if defaults['vmware']['key_file'] != '':
@@ -162,13 +187,10 @@ def get_options():
             except (OSError, IOError) as e:
                 print("(Error): Password Unlock Key file [%s] not found" % (home_dir + defaults['vmware']['key_file']))
                 sys.exit(1)
-        else:
-            print("(Error): Password included in INI file with no Key File specified")
-            sys.exit(1)
 
-        cipher = AES.new(key.rjust(32), AES.MODE_ECB)
-        decode = cipher.decrypt(base64.urlsafe_b64decode(str(defaults['vmware']['password'])))
-        defaults['vmware']['password'] = decode.strip()
+            cipher = AES.new(key.rjust(32), AES.MODE_ECB)
+            decode = cipher.decrypt(base64.urlsafe_b64decode(str(defaults['vmware']['password'])))
+            defaults['vmware']['password'] = decode.strip()
         
     return defaults
 
@@ -246,13 +268,17 @@ def ansible_list(options, vms):
             inventory['all_vms']['hosts'].append(vmname)
 
             for k, v in vms[server][vm].iteritems():
-                for group in options['vmware']['groups'].split(','):
+                for group in options['vmware']['groups']:
                     if k == group:
-                        if not v in inventory:
-                            inventory[v] = {
+                        if v in options['vmware']['groups'][group]:
+                            val = options['vmware']['groups'][group][v]
+                        else:
+                            val = v
+                        if not val in inventory:
+                            inventory[val] = {
                                 'hosts' : []
                             }
-                        inventory[v]['hosts'].append(vmname)
+                        inventory[val]['hosts'].append(vmname)
                 if not vmname in inventory['_meta']['hostvars']:
                     inventory['_meta']['hostvars'][vmname] = {}
                 inventory['_meta']['hostvars'][vmname][k] = v
