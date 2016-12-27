@@ -215,18 +215,7 @@ def vcenter_connect(server_fqdn, server_username, server_password):
 
 ###############################################################################
 #
-# Ansible "--host" is not implemented as "_meta" is provided by "--list"
-#
-###############################################################################
-def ansible_host(options, vms):
-    print "{}"
-
-
-
-
-###############################################################################
-#
-# Ansible "--list" returns JOSN vm listing
+# Produce a simple list of VMs
 #
 ###############################################################################
 def ansible_vms(options, vms):
@@ -242,6 +231,17 @@ def ansible_vms(options, vms):
                 print vmname
             elif vmname.startswith(options['vmware']['vms']):
                 print vmname
+
+
+
+###############################################################################
+#
+# Ansible "--host" is not implemented as "_meta" is provided by "--list"
+#
+###############################################################################
+def ansible_host(options, vms):
+    print "{}"
+
 
 
 ###############################################################################
